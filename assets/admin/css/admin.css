@@ -1,0 +1,43 @@
+/* KidQuiz Admin - lightweight styles */
+
+.kqas-admin-wrap .kqas-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.kqas-admin-wrap .kqas-card {
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.kqas-admin-wrap .kqas-muted {
+  color: #646970;
+}
+
+.kqas-admin-wrap code.kqas-code {
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.kqas-admin-wrap .kqas-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Make small admin forms nicer */
+.kqas-admin-wrap input[type="text"],
+.kqas-admin-wrap input[type="number"],
+.kqas-admin-wrap select {
+  border-radius: 10px;
+}
+
+/* Kid Codes table extras */
+.kqas-copy-btn {
+  cursor: pointer;
+}
