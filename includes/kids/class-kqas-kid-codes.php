@@ -130,8 +130,6 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 				$label = '';
 			}
 
-			$table = self::table_name();
-
 			// Try several attempts to avoid collisions.
 			$attempts = 0;
 			$max_try  = 25;
@@ -146,8 +144,9 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 
 				$inserted = $wpdb->query(
 					$wpdb->prepare(
-						"INSERT INTO {$table} (kid_code, label, status, created_at, updated_at)
+						"INSERT INTO %i (kid_code, label, status, created_at, updated_at)
 						 VALUES (%s, %s, %s, %s, %s)",
+						$wpdb->prefix . 'kqas_kid_codes',
 						$code,
 						$label,
 						self::STATUS_ACTIVE,
@@ -223,21 +222,19 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 		public static function get_code_row( $code ) {
 			global $wpdb;
 
-			$code  = self::normalize_code( $code );
-			$table = self::table_name();
+			$code = self::normalize_code( $code );
 
-			// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$row = $wpdb->get_row(
 				$wpdb->prepare(
 					"SELECT id, kid_code, label, status, created_at, updated_at
-					 FROM {$table}
+					 FROM %i
 					 WHERE kid_code = %s
 					 LIMIT 1",
+					$wpdb->prefix . 'kqas_kid_codes',
 					$code
 				),
 				ARRAY_A
 			);
-			// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 			return is_array( $row ) ? $row : null;
 		}
@@ -256,16 +253,13 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 				$status = self::STATUS_ACTIVE;
 			}
 
-			$table = self::table_name();
-
-			// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$count = (int) $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT COUNT(*) FROM {$table} WHERE status = %s",
+					"SELECT COUNT(*) FROM %i WHERE status = %s",
+					$wpdb->prefix . 'kqas_kid_codes',
 					$status
 				)
 			);
-			// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 			return max( 0, $count );
 		}
@@ -312,14 +306,14 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 				return new WP_Error( 'kqas_code_not_found', esc_html__( 'Kid Code not found.', 'kidquiz-age-smart' ) );
 			}
 
-			$table = self::table_name();
-			$now   = current_time( 'mysql' );
+			$now = current_time( 'mysql' );
 
 			$updated = $wpdb->query(
 				$wpdb->prepare(
-					"UPDATE {$table}
+					"UPDATE %i
 					 SET status = %s, updated_at = %s
 					 WHERE id = %d",
+					$wpdb->prefix . 'kqas_kid_codes',
 					$status,
 					$now,
 					(int) $row['id']
@@ -349,11 +343,10 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 				return new WP_Error( 'kqas_code_not_found', esc_html__( 'Kid Code not found.', 'kidquiz-age-smart' ) );
 			}
 
-			$table = self::table_name();
-
 			$deleted = $wpdb->query(
 				$wpdb->prepare(
-					"DELETE FROM {$table} WHERE id = %d",
+					"DELETE FROM %i WHERE id = %d",
+					$wpdb->prefix . 'kqas_kid_codes',
 					(int) $row['id']
 				)
 			);
@@ -369,11 +362,11 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 		 * List codes (admin use).
 		 *
 		 * @param array $args {
-		 *   @type string $status 'active'|'inactive'|''.
-		 *   @type int    $limit
-		 *   @type int    $offset
-		 *   @type string $search Search by code/label.
-		 * }
+			 *   @type string $status 'active'|'inactive'|''.
+			 *   @type int    $limit
+			 *   @type int    $offset
+			 *   @type string $search Search by code/label.
+			 * }
 		 * @return array<int,array<string,mixed>>
 		 */
 		public static function list_codes( $args = array() ) {
@@ -387,9 +380,11 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 			$limit  = max( 1, min( 200, $limit ) );
 			$offset = max( 0, $offset );
 
-			$table  = self::table_name();
 			$where  = array();
 			$params = array();
+
+			// Add table name as first parameter for %i
+			$params[] = $wpdb->prefix . 'kqas_kid_codes';
 
 			if ( in_array( $status, array( self::STATUS_ACTIVE, self::STATUS_INACTIVE ), true ) ) {
 				$where[]  = 'status = %s';
@@ -409,45 +404,43 @@ if ( ! class_exists( 'KQAS_Kid_Codes', false ) ) :
 			}
 
 			$sql = "SELECT id, kid_code, label, status, created_at, updated_at
-					FROM {$table}
-					{$where_sql}
-					ORDER BY created_at DESC
-					LIMIT %d OFFSET %d";
+						FROM %i
+						{$where_sql}
+						ORDER BY created_at DESC
+						LIMIT %d OFFSET %d";
 
-			$params[] = $limit;
-			$params[] = $offset;
+				$params[] = $limit;
+				$params[] = $offset;
 
-			// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			$prepared = $wpdb->prepare( $sql, $params );
-			$rows     = $wpdb->get_results( $prepared, ARRAY_A );
-			// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$prepared = $wpdb->prepare( $sql, $params );
+				$rows     = $wpdb->get_results( $prepared, ARRAY_A );
 
-			return is_array( $rows ) ? $rows : array();
-		}
-
-		/**
-		 * Create random digits string with fixed length (leading zeros allowed).
-		 *
-		 * @param int $len Length.
-		 * @return string
-		 */
-		private static function random_digits( $len ) {
-			$len = max( 1, (int) $len );
-
-			$min = (int) pow( 10, $len - 1 );
-			$max = (int) pow( 10, $len ) - 1;
-
-			// For len=1, allow 0-9.
-			if ( 1 === $len ) {
-				$min = 0;
-				$max = 9;
+				return is_array( $rows ) ? $rows : array();
 			}
 
-			$n = wp_rand( $min, $max );
+			/**
+			 * Create random digits string with fixed length (leading zeros allowed).
+			 *
+			 * @param int $len Length.
+			 * @return string
+			 */
+			private static function random_digits( $len ) {
+				$len = max( 1, (int) $len );
 
-			// Pad with leading zeros (if any).
-			return str_pad( (string) $n, $len, '0', STR_PAD_LEFT );
-		}
+				$min = (int) pow( 10, $len - 1 );
+				$max = (int) pow( 10, $len ) - 1;
+
+				// For len=1, allow 0-9.
+				if ( 1 === $len ) {
+					$min = 0;
+					$max = 9;
+				}
+
+				$n = wp_rand( $min, $max );
+
+				// Pad with leading zeros (if any).
+				return str_pad( (string) $n, $len, '0', STR_PAD_LEFT );
+			}
 	}
 
 endif;
