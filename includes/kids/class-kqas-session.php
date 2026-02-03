@@ -18,7 +18,7 @@
  * @package KidQuiz_Age_Smart
  */
 
-defined( 'ABSPATH' ) || exit;
+define( 'ABSPATH' ) || exit;
 
 if ( ! class_exists( 'KQAS_Session', false ) ) :
 
@@ -145,14 +145,14 @@ if ( ! class_exists( 'KQAS_Session', false ) ) :
 				$plan['quiz_id'] = (int) $quiz_id;
 			}
 
-			$sessions_table = self::sessions_table();
-			$now            = current_time( 'mysql' );
+			$now = current_time( 'mysql' );
 
 			$inserted = $wpdb->query(
 				$wpdb->prepare(
-					"INSERT INTO {$sessions_table}
+					"INSERT INTO %i
 					 (kid_code, nickname, quiz_id, age_group, started_at, time_limit_seconds, questions_count, correct_count, status)
 					 VALUES (%s, %s, %d, %s, %s, %d, %d, %d, %s)",
+					$wpdb->prefix . 'kqas_sessions',
 					$kid_code,
 					$nickname,
 					(int) $quiz_id,
@@ -272,14 +272,14 @@ if ( ! class_exists( 'KQAS_Session', false ) ) :
 				return new WP_Error( 'kqas_question_outside_plan', esc_html__( 'This question is not part of the current session.', 'kidquiz-age-smart' ) );
 			}
 
-			$attempts_table = self::attempts_table();
-			$now            = current_time( 'mysql' );
+			$now = current_time( 'mysql' );
 
 			$inserted = $wpdb->query(
 				$wpdb->prepare(
-					"INSERT INTO {$attempts_table}
+					"INSERT INTO %i
 					 (session_id, question_id, is_correct, time_spent_seconds, created_at)
 					 VALUES (%d, %d, %d, %d, %s)",
+					$wpdb->prefix . 'kqas_attempts',
 					$session_id,
 					$question_id,
 					$is_correct ? 1 : 0,
@@ -334,20 +334,16 @@ if ( ! class_exists( 'KQAS_Session', false ) ) :
 				);
 			}
 
-			$attempts_table = self::attempts_table();
-			$sessions_table = self::sessions_table();
-
 			// Count distinct correct questions (better than counting every correct attempt).
-			// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$correct_count = (int) $wpdb->get_var(
 				$wpdb->prepare(
 					"SELECT COUNT(DISTINCT question_id)
-					 FROM {$attempts_table}
+					 FROM %i
 					 WHERE session_id = %d AND is_correct = 1",
+					$wpdb->prefix . 'kqas_attempts',
 					$session_id
 				)
 			);
-			// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 			// Cap to questions_count to keep sane.
 			$questions_count = isset( $session['questions_count'] ) ? (int) $session['questions_count'] : 0;
@@ -359,9 +355,10 @@ if ( ! class_exists( 'KQAS_Session', false ) ) :
 
 			$updated = $wpdb->query(
 				$wpdb->prepare(
-					"UPDATE {$sessions_table}
+					"UPDATE %i
 					 SET correct_count = %d, ended_at = %s, status = %s
 					 WHERE id = %d",
+					$wpdb->prefix . 'kqas_sessions',
 					$correct_count,
 					$now,
 					self::STATUS_FINISHED,
@@ -400,21 +397,19 @@ if ( ! class_exists( 'KQAS_Session', false ) ) :
 				return new WP_Error( 'kqas_invalid_input', esc_html__( 'Invalid session.', 'kidquiz-age-smart' ) );
 			}
 
-			$table = self::sessions_table();
-
-			// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$row = $wpdb->get_row(
 				$wpdb->prepare(
 					"SELECT id, kid_code, nickname, quiz_id, age_group, started_at, ended_at, time_limit_seconds,
-							questions_count, correct_count, status
-					 FROM {$table}
+						questions_count, correct_count, status
+					 FROM %i
 					 WHERE id = %d
 					 LIMIT 1",
+					$wpdb->prefix . 'kqas_sessions',
 					$session_id
-				),
+				)
+			,
 				ARRAY_A
 			);
-			// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 			if ( ! is_array( $row ) ) {
 				return new WP_Error( 'kqas_session_not_found', esc_html__( 'Session not found.', 'kidquiz-age-smart' ) );
